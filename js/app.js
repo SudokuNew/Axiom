@@ -59,6 +59,78 @@
     document.querySelectorAll('.unit').forEach((b) => (b.onclick = () => startUnit(b.dataset.id)));
   }
 
+  /* ---------- 背景の図形と正解の演出（見た目だけ。採点には関係しない） ---------- */
+  let okCount = 0, combo = 0;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  // {n/k} の星型多角形の path。n=頂点数, k=飛ばす数, R=半径, rot=回転(度)
+  function star(n, k, R, rot) {
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const a = ((i * k * 360) / n + rot - 90) * (Math.PI / 180);
+      pts.push((R * Math.cos(a)).toFixed(2) + ',' + (R * Math.sin(a)).toFixed(2));
+    }
+    return 'M' + pts.join('L') + 'Z';
+  }
+  function ensureBg() {
+    const quiz = $('quiz');
+    if (quiz.querySelector('.qbg')) return;
+    const circle = (r, cx, cy) => `<circle r="${r}" cx="${cx || 0}" cy="${cy || 0}"/>`;
+    const petals = Array.from({ length: 12 }, (_, i) => {
+      const a = (i * 30 * Math.PI) / 180;
+      return circle(22, (44 * Math.cos(a)).toFixed(2), (44 * Math.sin(a)).toFixed(2));
+    }).join('');
+    const ticks = Array.from({ length: 72 }, (_, i) => `<path d="M0,-${i % 6 === 0 ? 93 : 96}V-99" transform="rotate(${i * 5})"/>`).join('');
+    const dots = Array.from({ length: 24 }, (_, i) => {
+      const a = (i * 15 * Math.PI) / 180;
+      return circle(i % 2 ? 0.9 : 1.5, (78 * Math.cos(a)).toFixed(2), (78 * Math.sin(a)).toFixed(2));
+    }).join('');
+    const div = document.createElement('div');
+    div.className = 'qbg';
+    div.setAttribute('aria-hidden', 'true');
+    div.innerHTML = `<svg viewBox="-100 -100 200 200" xmlns="${SVGNS}">
+      <defs><linearGradient id="qbg-grad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#4f6bff"/><stop offset=".55" stop-color="#7a5cff"/><stop offset="1" stop-color="#22c1c3"/></linearGradient></defs>
+      <g class="l1" stroke="url(#qbg-grad)">
+        <path d="${star(12, 5, 90, 0)}"/><path d="${star(12, 5, 90, 15)}" opacity=".5"/>
+        <path d="${star(8, 3, 68, 0)}"/><path d="${star(6, 2, 46, 0)}"/><path d="${star(6, 2, 46, 30)}" opacity=".6"/>
+        ${circle(90)}${circle(68)}${circle(46)}${circle(24)}<g opacity=".55">${petals}</g>
+      </g>
+      <g class="l2" stroke="url(#qbg-grad)">
+        <path d="${star(10, 3, 84, 0)}"/><path d="${star(5, 2, 60, 18)}"/><path d="${star(9, 4, 38, 0)}" opacity=".7"/>
+        ${circle(98)}${circle(80)}<g opacity=".8">${ticks}</g><g class="dots">${dots}</g>
+      </g></svg>`;
+    quiz.insertBefore(div, quiz.firstChild);
+  }
+  // 正解数が増えるほど、また連続で正解するほど明るくなる
+  function setGlow() {
+    const total = session ? session.items.length : 1;
+    const g = 0.2 + 0.65 * Math.min(1, okCount / (total * 0.8)) + Math.min(0.15, combo * 0.015);
+    $('quiz').style.setProperty('--glow', Math.min(1, g).toFixed(3));
+  }
+  function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+  function celebrate() {
+    const body = document.querySelector('.qbody'), ans = $('q-answer');
+    replay(ans, 'hit'); replay($('q-text'), 'shine'); replay(document.querySelector('.qbg'), 'pulse');
+    const b = body.getBoundingClientRect(), r = ans.getBoundingClientRect();
+    const cx = r.left - b.left + r.width / 2, cy = r.top - b.top + r.height / 2;
+    const cols = ['#ffb629', '#22c1c3', '#4f6bff', '#19b36b'];
+    if (body.querySelectorAll('.spark').length < 24) {
+      for (let i = 0; i < 8; i++) {
+        const s = document.createElement('i'), ang = (Math.PI * 2 * i) / 8 + Math.random() * 0.4, d = 44 + Math.random() * 28;
+        s.className = 'spark';
+        s.style.cssText = `left:${cx}px;top:${cy}px;--dx:${(Math.cos(ang) * d * 1.7).toFixed(1)}px;--dy:${(Math.sin(ang) * d).toFixed(1)}px;background:${cols[i % 4]}`;
+        s.addEventListener('animationend', () => s.remove());
+        body.appendChild(s);
+      }
+    }
+    if (combo > 0 && combo % 10 === 0) {
+      const c = document.createElement('div');
+      c.className = 'combo'; c.textContent = combo + ' 連続！';
+      c.addEventListener('animationend', () => c.remove());
+      body.appendChild(c);
+    }
+  }
+
   /* ---------- 演習の開始・再開 ---------- */
   function startUnit(id) {
     if (session && session.unit !== id && !confirm('途中の演習があります。やり直しますか？')) return resume();
@@ -78,6 +150,16 @@
   function openQuiz() {
     input = '';
     buildKeypad();
+    ensureBg();
+    document.querySelectorAll('.spark, .combo').forEach((n) => n.remove()); // 前回の演出の残りを消す
+    // 再開のときも、ここまでの正解数から背景の明るさを復元する
+    const u0 = A.units[session.unit];
+    okCount = 0; combo = 0;
+    for (let i = 0; i < session.idx; i++) {
+      const a = session.answers[i];
+      if (a && u0.check(a, session.items[i].d)) { okCount++; combo++; } else combo = 0;
+    }
+    setGlow();
     show('quiz');
     session.tStart = Date.now() - session.elapsed * 1000;
     clearInterval(timer);
@@ -127,9 +209,15 @@
     });
   }
   function submit() {
+    const it = session.items[session.idx];
+    const ok = !!input && A.units[session.unit].check(input, it.d);
     session.answers[session.idx] = input; // 空のまま決定＝パス（不正解）
     session.idx++;
+    if (ok) { okCount++; combo++; } else combo = 0;
     if (session.idx >= session.items.length) return finish();
+    // 不正解のときは何も起きない（正誤は最後にまとめて見直す）。正解のときだけ短い演出
+    setGlow();
+    if (ok) celebrate();
     persist2();
     renderQ();
   }
@@ -137,6 +225,7 @@
   /* ---------- 終了・採点 ---------- */
   function finish() {
     clearInterval(timer);
+    document.querySelectorAll('.spark, .combo').forEach((n) => n.remove());
     tick();
     const s = session, u = A.units[s.unit];
     const wrong = [];

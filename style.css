@@ -121,3 +121,58 @@ sup { font-size: .6em; vertical-align: super; line-height: 0; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 @media (max-height: 640px) { .qtext { padding: 14px 12px; } .answer { min-height: 50px; font-size: 26px; } .key { height: 46px; } }
+
+/* ================= 演習画面の背景と正解の演出（v0.2） =================
+ * --glow（0〜1）が正解するたびに上がり、背景がだんだん明るく・あたたかくなる。
+ * 背景の図形は js/app.js の ensureBg() が SVG で作る。 */
+@property --glow { syntax: '<number>'; inherits: true; initial-value: 0.2; }
+#quiz { --glow: .2; position: relative; isolation: isolate; transition: --glow .9s ease; }
+#quiz > :not(.qbg) { position: relative; z-index: 1; }
+.qbg { position: absolute; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+  background:
+    radial-gradient(60% 40% at 50% 38%, rgba(255, 255, 255, calc(.25 + var(--glow) * .55)), transparent 72%),
+    radial-gradient(130% 60% at 50% 86%, rgba(255, 190, 70, calc(var(--glow) * .34)), transparent 66%),
+    radial-gradient(90% 60% at 100% 0%, rgba(34, 193, 195, calc(.10 + var(--glow) * .18)), transparent 62%),
+    radial-gradient(90% 60% at 0% 0%, rgba(122, 92, 255, calc(.10 + var(--glow) * .12)), transparent 62%),
+    var(--bg); }
+.qbg svg { position: absolute; left: 50%; top: 44%; width: min(150vw, 900px); aspect-ratio: 1; transform: translate(-50%, -50%);
+  opacity: calc(.34 + var(--glow) * .16); fill: none; stroke-width: .28; stroke-linejoin: round; }
+.qbg g { transform-box: view-box; transform-origin: 50% 50%; }
+.qbg .l1 { animation: spin 150s linear infinite; }
+.qbg .l2 { animation: spin 220s linear infinite reverse; }
+.qbg .dots { fill: url(#qbg-grad); stroke: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.qbg::after { content: ""; position: absolute; inset: 0; opacity: 0;
+  background: radial-gradient(circle at 50% 46%, rgba(255, 255, 255, .85), rgba(255, 233, 170, .35) 40%, transparent 68%); }
+.qbg.pulse::after { animation: bgflash .6s ease-out; }
+@keyframes bgflash { 0% { opacity: .75; } 100% { opacity: 0; } }
+.keypad { background: linear-gradient(180deg, rgba(246, 248, 255, 0), rgba(246, 248, 255, .85) 26%); }
+
+/* 正解したとき（0.5秒ほどの短い演出） */
+.qbody { position: relative; }
+.answer.hit { animation: hit .55s ease-out; }
+@keyframes hit {
+  0% { border-color: var(--ok); background: #effff7; box-shadow: 0 0 0 0 rgba(25, 179, 107, .45); }
+  100% { box-shadow: 0 0 0 20px rgba(25, 179, 107, 0); }
+}
+.qtext.shine { animation: shine .6s ease-out; }
+@keyframes shine {
+  0% { box-shadow: 0 0 36px rgba(255, 182, 41, .5), var(--shadow); }
+  100% { box-shadow: var(--shadow); }
+}
+.spark { position: absolute; z-index: 3; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 2px; pointer-events: none;
+  transform: rotate(45deg); animation: spark .6s ease-out forwards; }
+@keyframes spark {
+  0% { opacity: 1; transform: translate(0, 0) rotate(45deg) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(225deg) scale(.2); }
+}
+.combo { position: absolute; z-index: 3; left: 50%; top: 4%; transform: translateX(-50%); padding: 5px 14px; border-radius: 999px; pointer-events: none;
+  font-size: 13px; font-weight: 800; color: #7a4a00; background: linear-gradient(135deg, #ffe08a, var(--sun)); box-shadow: 0 4px 12px rgba(255, 182, 41, .4);
+  animation: combo 1s ease-out forwards; }
+@keyframes combo {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(.9); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -10px); }
+}
+@media (prefers-reduced-motion: reduce) { .qbg g { animation: none; } .spark { display: none; } }
