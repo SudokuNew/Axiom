@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#f6f8ff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Axiom">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Axiom</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ホーム -->
+  <section id="home" class="screen active">
+    <header class="top">
+      <div class="brand"><span class="logo">A</span><b>Axiom</b></div>
+      <button class="icon-btn" id="btn-settings" aria-label="設定">⚙</button>
+    </header>
+    <div class="hero">
+      <p class="date" id="home-date"></p>
+      <h1 id="home-title">今日の演習</h1>
+      <p class="sub" id="home-sub"></p>
+      <button class="start" id="btn-start"><span id="start-label">はじめる</span><small id="start-meta"></small></button>
+      <div class="streak"><span id="streak-n">0</span>日連続</div>
+    </div>
+    <h2 class="sec">単元をえらぶ</h2>
+    <div id="unit-list" class="unit-list"></div>
+  </section>
+
+  <!-- 演習 -->
+  <section id="quiz" class="screen">
+    <header class="qhead">
+      <button class="icon-btn" id="btn-quit" aria-label="中断">✕</button>
+      <div class="bar"><i id="bar-fill"></i></div>
+      <div class="qcount"><b id="q-now">1</b>/<span id="q-total">100</span></div>
+    </header>
+    <div class="qmeta"><span id="q-unit"></span><span id="q-time">0:00</span></div>
+    <main class="qbody">
+      <div id="q-text" class="qtext"></div>
+      <div id="q-answer" class="answer" aria-live="polite"><span id="q-input"></span><i class="caret"></i></div>
+      <p id="q-hint" class="hint"></p>
+    </main>
+    <div id="keypad" class="keypad"></div>
+  </section>
+
+  <!-- 結果 -->
+  <section id="result" class="screen">
+    <header class="top"><div class="brand"><span class="logo">A</span><b>けっか</b></div></header>
+    <div class="score-card">
+      <p id="r-unit" class="date"></p>
+      <div class="score"><b id="r-correct">0</b><span>/ <i id="r-total">0</i></span></div>
+      <p id="r-rate" class="rate"></p>
+      <div class="stats">
+        <div><small>かかった時間</small><b id="r-time">0:00</b></div>
+        <div><small>1問あたり</small><b id="r-per">0</b></div>
+      </div>
+      <p id="r-msg" class="msg"></p>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="btn-again">もう一度</button>
+      <button class="btn" id="btn-home">ホームへ</button>
+    </div>
+    <h2 class="sec" id="r-wrong-title">まちがえた問題</h2>
+    <ul id="r-wrong" class="wrong-list"></ul>
+  </section>
+
+  <!-- 設定 -->
+  <section id="settings" class="screen">
+    <header class="top">
+      <div class="brand"><b>設定</b></div>
+      <button class="icon-btn" id="btn-settings-close" aria-label="閉じる">✕</button>
+    </header>
+    <div class="card">
+      <h3>1回の問題数</h3>
+      <div class="seg" id="set-count"></div>
+      <h3>レベル</h3>
+      <div class="seg" id="set-level"></div>
+      <p class="note">自動：1週目＝基礎、2週目＝工夫、3週目以降＝入試。単元ごとに初めて解いた日から数えます。</p>
+    </div>
+    <div class="card">
+      <h3>記録のバックアップ</h3>
+      <p class="note">記録はこの端末の中だけに保存されます。機種変更の前に書き出してください。</p>
+      <div class="row">
+        <button class="btn" id="btn-export">書き出し（コピー）</button>
+        <button class="btn" id="btn-import">読み込み</button>
+      </div>
+      <textarea id="backup-text" rows="4" placeholder="ここに貼り付けて「読み込み」"></textarea>
+      <p id="backup-msg" class="note"></p>
+    </div>
+    <div class="card">
+      <h3>単元ごとのスタート日</h3>
+      <p class="note">レベルの進み方がずれたときに、日付を直せます。</p>
+      <div id="set-starts"></div>
+    </div>
+    <p class="ver">Axiom v0.1 ・ <button class="link" id="btn-reload">最新版に更新</button></p>
+  </section>
+
+</div>
+<div id="toast" class="toast" role="status"></div>
+
+<script src="js/core.js"></script>
+<script src="js/units/quadratic.js"></script>
+<script src="js/units/fractions.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
