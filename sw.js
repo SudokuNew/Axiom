@@ -1,6 +1,6 @@
 /* Service Worker: オフラインで動かす。
  * ファイルを更新したら、下の VERSION の数字を上げる（古いキャッシュが入れ替わる）。 */
-const VERSION = 'axiom-v2';
+const VERSION = 'axiom-v4';
 const FILES = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
   'js/core.js', 'js/app.js', 'js/units/quadratic.js', 'js/units/fractions.js',

@@ -49,7 +49,7 @@
     $('home-title').textContent = doneAll ? '今日は全部おわり！' : '今日の演習';
     $('home-sub').textContent = doneAll ? 'もう一度やって、さらに力をつけよう' : `${nu.name} ・ Lv${lv} ${nu.levels[lv - 1]}`;
     $('start-label').textContent = session ? 'つづきから' : doneAll ? 'もう1セット' : 'はじめる';
-    $('start-meta').textContent = session ? `${A.units[session.unit].name} ${session.idx + 1}/${session.items.length}問目` : `${state.settings.count}問`;
+    $('start-meta').textContent = session ? `${A.units[session.unit].name} ${session.done + 1}/${session.items.length}問目` : `${state.settings.count}問`;
     $('unit-list').innerHTML = A.unitOrder.map((id) => {
       const u = A.units[id], l = A.levelFor(state, id, A.todayStr()), r = todayRecs(id);
       const last = r[r.length - 1];
@@ -131,6 +131,17 @@
     }
   }
 
+  // まちがえたとき：控えめに揺れて「もう一度」と出す（正解の演出より静か）
+  function nudge() {
+    replay($('q-answer'), 'miss');
+    const body = document.querySelector('.qbody');
+    body.querySelectorAll('.combo').forEach((n) => n.remove());
+    const c = document.createElement('div');
+    c.className = 'combo again'; c.textContent = 'もう一度';
+    c.addEventListener('animationend', () => c.remove());
+    body.appendChild(c);
+  }
+
   /* ---------- 演習の開始・再開 ---------- */
   function startUnit(id) {
     if (session && session.unit !== id && !confirm('途中の演習があります。やり直しますか？')) return resume();
@@ -141,7 +152,9 @@
     const n = us.history.filter((h) => h.date === A.todayStr()).length;
     const seed = `${A.todayStr()}|${id}|${level}|${n}`;
     const items = A.buildSession(id, level, state.settings.count, seed);
-    session = { unit: id, level, items, answers: [], idx: 0, elapsed: 0, seed };
+    // order: 出す順番 / pos: いま何番目か / done: 正解できた数 / tries: 解答ボタンを押した回数
+    // miss: 問題番号→まちがえた回数 / first: 問題番号→はじめのまちがった答え
+    session = { unit: id, level, items, order: items.map((_, i) => i), pos: 0, done: 0, tries: 0, miss: {}, first: {}, elapsed: 0, seed };
     persist2();
     openQuiz();
   }
@@ -153,12 +166,7 @@
     ensureBg();
     document.querySelectorAll('.spark, .combo').forEach((n) => n.remove()); // 前回の演出の残りを消す
     // 再開のときも、ここまでの正解数から背景の明るさを復元する
-    const u0 = A.units[session.unit];
-    okCount = 0; combo = 0;
-    for (let i = 0; i < session.idx; i++) {
-      const a = session.answers[i];
-      if (a && u0.check(a, session.items[i].d)) { okCount++; combo++; } else combo = 0;
-    }
+    okCount = session.done; combo = 0;
     setGlow();
     show('quiz');
     session.tStart = Date.now() - session.elapsed * 1000;
@@ -174,13 +182,15 @@
 
   /* ---------- 出題画面 ---------- */
   function renderQ() {
-    const u = A.units[session.unit], it = session.items[session.idx];
-    $('q-unit').textContent = `${u.name} ・ Lv${session.level} ${u.levels[session.level - 1]}`;
-    $('q-now').textContent = session.idx + 1;
+    const u = A.units[session.unit], i = session.order[session.pos], it = session.items[i];
+    const misses = session.miss[i] || 0;
+    $('q-unit').textContent = `${u.name} ・ Lv${session.level} ${u.levels[session.level - 1]}` + (misses ? ' ・ やり直し' : '');
+    $('q-now').textContent = Math.min(session.done + 1, session.items.length);
     $('q-total').textContent = session.items.length;
-    $('bar-fill').style.width = (session.idx / session.items.length) * 100 + '%';
+    $('bar-fill').style.width = (session.done / session.items.length) * 100 + '%';
     $('q-text').innerHTML = it.q;
-    $('q-hint').textContent = session.idx < 3 ? u.hint : '';
+    // 2回まちがえた問題は、答えを見せる（それを打って正解にする）。出しっぱなしで詰まらないように
+    $('q-hint').textContent = misses >= 2 ? `答え：${it.a}` : session.pos < 3 ? u.hint : '';
     setInput('');
   }
   function setInput(v) { input = v; $('q-input').textContent = v; }
@@ -209,15 +219,22 @@
     });
   }
   function submit() {
-    const it = session.items[session.idx];
-    const ok = !!input && A.units[session.unit].check(input, it.d);
-    session.answers[session.idx] = input; // 空のまま決定＝パス（不正解）
-    session.idx++;
-    if (ok) { okCount++; combo++; } else combo = 0;
-    if (session.idx >= session.items.length) return finish();
-    // 不正解のときは何も起きない（正誤は最後にまとめて見直す）。正解のときだけ短い演出
-    setGlow();
-    if (ok) celebrate();
+    const i = session.order[session.pos], it = session.items[i];
+    const ok = !!input && A.units[session.unit].check(input, it.d); // 空のまま決定＝パス（不正解）
+    session.tries = (session.tries || 0) + 1;
+    if (ok) {
+      session.done++; session.pos++; okCount = session.done; combo++;
+      if (session.pos >= session.order.length) return finish();
+      setGlow();
+      celebrate(); // 一発で正解でも、やり直して正解でも、同じ演出
+    } else {
+      session.miss[i] = (session.miss[i] || 0) + 1;
+      if (!(i in session.first)) session.first[i] = input;
+      combo = 0;
+      // 次へは進まない。その場で同じ問題を、正解するまで解き直す
+      setGlow();
+      nudge();
+    }
     persist2();
     renderQ();
   }
@@ -228,16 +245,14 @@
     document.querySelectorAll('.spark, .combo').forEach((n) => n.remove());
     tick();
     const s = session, u = A.units[s.unit];
+    // 最後はぜんぶ正解している。成績は「一発で正解できた数」で数え、まちがえた問題は見直し用に残す
     const wrong = [];
-    let correct = 0;
     s.items.forEach((it, i) => {
-      const ans = s.answers[i] || '';
-      if (ans && u.check(ans, it.d)) correct++;
-      else wrong.push({ q: it.q, you: ans, a: it.a });
+      if (s.miss[i]) wrong.push({ q: it.q, you: s.first[i], a: it.a, n: s.miss[i] });
     });
-    const total = s.items.length, sec = Math.round(s.elapsed);
+    const total = s.items.length, correct = total - wrong.length, sec = Math.round(s.elapsed);
     const us = unitState(s.unit);
-    us.history.push({ date: A.todayStr(), level: s.level, total, correct, sec });
+    us.history.push({ date: A.todayStr(), level: s.level, total, correct, sec, tries: s.tries || s.order.length });
     if (us.history.length > 400) us.history.splice(0, us.history.length - 400);
     state.session = null; session = null;
     persist();
@@ -251,14 +266,14 @@
     $('r-unit').textContent = `${u.name} ・ Lv${r.level} ${u.levels[r.level - 1]}`;
     $('r-correct').textContent = r.correct;
     $('r-total').textContent = r.total;
-    $('r-rate').textContent = `正答率 ${rate}%`;
+    $('r-rate').textContent = `一発正解 ${rate}%`;
     $('r-time').textContent = fmtTime(r.sec);
     $('r-per').textContent = (r.sec / r.total).toFixed(1) + '秒';
-    $('r-msg').textContent = rate === 100 ? 'パーフェクト！' : rate >= 90 ? 'すばらしい！あと少し' : rate >= 70 ? 'いい調子。まちがいを見直そう' : 'ここからが伸びどころ。見直して、もう一度';
+    $('r-msg').textContent = rate === 100 ? 'パーフェクト！すべて一発で正解' : rate >= 90 ? 'すばらしい！まちがいを見直そう' : rate >= 70 ? 'いい調子。まちがいを見直そう' : 'ここからが伸びどころ。見直して、もう一度';
     $('r-wrong-title').style.display = '';
     $('r-wrong').innerHTML = r.wrong.length
-      ? r.wrong.map((w) => `<li><div class="q">${w.q}</div><div>あなたの答え：<span class="ya">${w.you ? plain(w.you) : '（無回答）'}</span></div><div>正解：<span class="ca">${w.a}</span></div></li>`).join('')
-      : '<li class="none">全問正解！</li>';
+      ? r.wrong.map((w) => `<li><div class="q">${w.q}</div><div>はじめの答え：<span class="ya">${w.you ? plain(w.you) : '（無回答）'}</span>（${w.n}回まちがえた）</div><div>正解：<span class="ca">${w.a}</span></div></li>`).join('')
+      : '<li class="none">全問、一発で正解！</li>';
   }
 
   /* ---------- 設定 ---------- */
@@ -326,8 +341,10 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden && session) { tick(); persist2(); } });
 
   /* ---------- 起動 ---------- */
-  if (state.session && state.session.items && state.session.unit in A.units) {
+  if (state.session && state.session.order && state.session.unit in A.units) {
     session = state.session; // 前回の途中から再開できる
+  } else if (state.session) {
+    state.session = null; persist(); // 古い形式（v0.2 まで）の途中データは破棄する
   }
   renderHome();
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {

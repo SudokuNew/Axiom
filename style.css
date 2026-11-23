@@ -175,4 +175,14 @@ sup { font-size: .6em; vertical-align: super; line-height: 0; }
   75% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -10px); }
 }
+/* まちがえたとき（正解の演出より静かに） */
+.answer.miss { animation: miss .4s ease-out; }
+@keyframes miss {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  45% { transform: translateX(6px); }
+  70% { transform: translateX(-3px); }
+  0% { border-color: var(--ng); background: #fff5f7; }
+}
+.combo.again { color: #b3304d; background: linear-gradient(135deg, #ffe3ea, #ffc9d6); box-shadow: 0 4px 12px rgba(240, 80, 110, .25); }
 @media (prefers-reduced-motion: reduce) { .qbg g { animation: none; } .spark { display: none; } }

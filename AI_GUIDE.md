@@ -17,14 +17,15 @@ Axiom は **ビルド不要の静的 PWA**（HTML + CSS + 素の JavaScript）�
 | `js/core.js` | 共通部品：乱数 `makeRng`、分数 `F`、解答パーサ `parseSet`、レベル判定 `levelFor`、保存 `load/save`、出題生成 `buildSession`、単元登録 `registerUnit` |
 | `js/app.js` | 画面の動き（ホーム・演習・採点・設定）。単元の中身は知らない |
 | `js/units/*.js` | **単元ごとに1ファイル**。問題生成・採点・テンキー配列を持つ |
-| `sw.js` | オフライン用 Service Worker。**ファイルを変えたら `VERSION` を上げる** |
+| `sw.js` | オフライン用 Service Worker。`FILES` に載せたものだけがオフラインで使える。`VERSION` は公開時に自動で書き換わる |
 | `tests/test.js` | 自動テスト。`node tests/test.js` |
+| `.github/workflows/pages.yml` | GitHub Actions：main への push で、テスト → GitHub Pages へ自動公開。テストが落ちたら公開されない。公開するのは `index.html` `style.css` `sw.js` `manifest.webmanifest` `js/` `icons/` のみ（**新しいファイルやフォルダを足したら、このファイルの `cp` の行にも足す**） |
 
 ## 新しい単元の追加手順
 
 1. `js/units/foo.js` を作り、`Axiom.registerUnit({...})` を呼ぶ（`quadratic.js` が見本）。
 2. `index.html` の `<script src="js/units/foo.js">` を `app.js` の前に追加。
-3. `sw.js` の `FILES` にパスを追加し、`VERSION` を上げる。
+3. `sw.js` の `FILES` にパスを追加する（`js/` の中なら公開設定の変更は不要）。
 4. `tests/test.js` の読み込みリストに追加し、`node tests/test.js` が全部成功することを確認。
 
 単元オブジェクトの契約：
@@ -48,6 +49,10 @@ Axiom は **ビルド不要の静的 PWA**（HTML + CSS + 素の JavaScript）�
 - マイナス記号は表示・入力とも `−`（U+2212）。`parseSet` は `-` `ー` も受け付ける。
 - 問題の重複は `buildSession` が `q` で除外する。
 
+## 演習の進行（js/app.js の session）
+
+`session = { unit, level, items, order, pos, done, tries, miss, first, elapsed, seed }`。`order` は出す順番（問題番号の配列）で、**まちがえたら `pos` を進めず、その場で同じ問題を正解するまで解き直させる**。2回まちがえるとヒント欄に答えを出す。`done` は正解できた数（進捗バーと背景の明るさの元）、`tries` は解答ボタンを押した回数、成績の `correct` は「一発で正解できた数」（`miss` に無い問題の数）。途中経過は `localStorage` に保存され、再開できる。
+
 ## 難易度の調整
 
 二次方程式は `quadratic.js` 先頭の `L1 / L2 / L3` 表（`[重み, 生成関数]` の配列）に生成関数を足す／重みを変えるだけ。
@@ -60,7 +65,7 @@ Axiom は **ビルド不要の静的 PWA**（HTML + CSS + 素の JavaScript）�
 - 入試レベルは**オリジナル問題**にする。過去問・問題集の文章をそのまま入れない（著作権）。
 - 保存データ `localStorage['axiom.v1']` の形式を変えるときは、既存データを壊さない（バージョン `v` を上げて移行処理を書く）。
 - スマホ（iPhone・縦画面）を最優先。テンキーは `pointerdown` で反応させる（速さのため）。
-- 変更したら：`node tests/test.js` → ブラウザで通しで動作確認 → `sw.js` の `VERSION` を上げる。
+- 変更したら：`node tests/test.js` → ブラウザで通しで動作確認。`VERSION` は手で上げなくてよい（公開時に自動）。push すると Actions が同じテストを走らせるので、テストを壊す変更は公開されない。
 
 ## 今後の候補
 
